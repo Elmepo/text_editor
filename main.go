@@ -22,6 +22,7 @@ func main() {
 	// CSI 2J == cursor to top left
 	fmt.Print("\033[H\033[2J")
 
+	// Need to use a longer buffer because ESC == ESC but arrow keys are eg ESC [ A
 	buffer := make([]byte, 1)
 	MAIN_LOOP:
 	for {
@@ -38,8 +39,8 @@ func main() {
 		case 3:
 			break MAIN_LOOP
 		// ESC
-		// case 27:
-		// 	break MAIN_LOOP
+		case 27:
+			break MAIN_LOOP
 		// ENTER
 		case 13:
 			fmt.Print("\r\n")
