@@ -1,0 +1,13 @@
+This is a test  fot of the text editor. 
+IT
+I'veI;veThis is a test of the text editor.
+
+I've used both backspace and enter
+
+Notes:
+Enter doesn't work properly on ht the first enter
+Backspeaace is very weird and seems to sometimes not peroproperly delete cahharacters, and sometimes places the cursor on the line above
+
+
+Enter also seems to sometimes jump above instead of below
+Good news is the same ave line overflow works without any effort from my part
