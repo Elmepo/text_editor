@@ -5,7 +5,24 @@ import (
 	"fmt"
 	"os"
 	"golang.org/x/term"
+	"time"
 )
+
+type Logger struct {
+	FileName string
+}
+
+func (l *Logger) Log(message string) {
+	f, err := os.OpenFile(l.FileName, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	now := time.Now()
+	logMessage := fmt.Sprintf("%s: %s\r\n", now.Format(time.DateTime), message)
+	if _, err := f.Write([]byte(logMessage)); err != nil {
+		panic(err)
+	}
+}
 
 func moveCursor(x int, y int) {
 	// ESC [ LINE ; COL H
@@ -29,10 +46,6 @@ func runCommand(com string, temp string, width int, height int) {
 		if _, err := fo.Write([]byte(temp)); err != nil {
 			panic(err)
 		}
-
-
-
-
 		moveCursor(0, height)
 		for _ = range(width) {
 			fmt.Print(" ")
@@ -42,6 +55,10 @@ func runCommand(com string, temp string, width int, height int) {
 }
 
 func main() {
+	l := Logger{
+		FileName: "log_file.txt",
+	}
+	l.Log("Started Program")
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
 		panic(err)
@@ -56,11 +73,13 @@ func main() {
 	// CSI H == clear screen
 	// CSI 2J == cursor to top left
 	fmt.Print("\033[H\033[2J")
+	l.Log("Saved previous state and moved to alternate screen")
 
 	width, height, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		panic(err)
 	}
+	l.Log(fmt.Sprintf("Terminal size: %d x %d", width, height))
 	// fmt.Printf("Terminal size: %d x %d\r\n", width, height)
 
 	cursorPosition := []int{0,0}
@@ -71,6 +90,7 @@ func main() {
 	// Using a 3 byte buffer because the arrow keys occur on the third index of
 	// an ESC command (ESC [ A,B,C,D)
 	buffer := make([]byte, 3)
+	l.Log(fmt.Sprintf("Cursor Positions %d, %d - Command Cursor %d - IN_COMMAND_MODE %b", cursorPosition[0], cursorPosition[1], commandCursorPosition, IN_COMMAND_MODE))
 	MAIN_LOOP:
 	for {
 		_, err := os.Stdin.Read(buffer)
@@ -139,6 +159,8 @@ func main() {
 			}
 		// ENTER
 		case 13:
+			// l.Log(fmt.Sprintf("Enter pressed: Cursor Positions %d, %d - Command Cursor %d - IN_COMMAND_MODE %b", cursorPosition[0], cursorPosition[1], commandCursorPosition, IN_COMMAND_MODE))
+			l.Log("ENTER")
 			if IN_COMMAND_MODE {
 				runCommand(command, fileContents, width, height)
 				command = ""
@@ -147,13 +169,17 @@ func main() {
 				IN_COMMAND_MODE = false
 			} else {
 				// fmt.Print("\r\n")
+				l.Log(fmt.Sprintf("%d, %d", cursorPosition[0], cursorPosition[1]))
 				cursorPosition[0] = 0
 				cursorPosition[1] += 1
-				moveCursor(cursorPosition[0], cursorPosition[1])
+				// moveCursor(cursorPosition[0], cursorPosition[1])
+				fmt.Print("\r\n")
 				fileContents += "\r\n"
 				// fmt.Printf("Cursor Positions: %d, %d", cursorPosition[0], cursorPosition[1])
+				// l.Log(fmt.Sprintf("After manipulation: %d, %d", cursorPosition[0], cursorPosition[1]))
 			}
 		default:
+			l.Log(fmt.Sprintf("Default Case. Buffer: %v", buffer))
 			// fmt.Printf("%v", buffer)
 			fmt.Printf("%c", key)
 			if IN_COMMAND_MODE {
