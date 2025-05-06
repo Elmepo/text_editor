@@ -1,0 +1,9 @@
+This is a regression test file
+I will use it to check as many potential problems as I can.
+
+ Starting with a space
+
+Lines that use a very large amount of characters without breakpoints, going over the default page limit set by the text editor
+Lines that use a very large amount of characters without breakpoints, going over the default page limit set by the text editor and even going beyond my terminal window's size, ensuring that we're not solving issues for specific pages but ignoring larger issues
+Lines that have manually enterered \r\n breakpoints in them
+Lines that have potential \t formatting in them

@@ -2,13 +2,21 @@
 
 - [ ] Create a parent class for text contents, and then pseudo-inherit this for command vs file contents?
 - [ ] Probably need to come up with a better way to run commands
-- [ ] Fix backspace
-- [ ] Fix arrow keys
+- [x] Fix backspace
+- [x] Fix arrow keys
 - [ ] Fix backspace across lines
-- [ ] Look into preventing the automatic overflow for characters to handle it within the text editor (i.e. overflow y, line break, etc)
-- [ ] Automatically resize text across lines
-- [ ] save file should be able to take a parameter for the file name
-- [ ] should be able to automatically open up a file for writing and this is the save default
+- [x] Look into preventing the automatic overflow for characters to handle it within the text editor (i.e. overflow y, line break, etc)
+    - [x] Prevent automatic overflow
+    - [?] Shift "window" to always display the cursor
+    - [x] setting to automatically wrap lines
+    - [ ] configurable "window"
+- [x] Automatically resize text across lines
+- [x] save file should be able to take a parameter for the file name
+- [x] should be able to automatically open up a file for writing and this is the save default
 - [ ] log lines for commands that are pseudo permanent, kinda like vim
 - [ ] better indicators for command mode vs insert mode
-- [ ] if running with an existing file name as the param, open for reading
+- [x] if running with an existing file name as the param, open for reading
+- [x] Can open file into buffer for reading
+- [x] delineate between command and entry zones via a unicode half width block or similar (u+2584)
+- [x] show page via unicode right half block (u+2590)
+- [ ] wrapping should happen on word not on character - i.e. it should be "a wrapped\nstring" instead of "a wrapped st\nring"
