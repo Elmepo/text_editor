@@ -28,6 +28,7 @@ type TextEditor struct {
 	IN_COMMAND_MODE       bool
 	command               string
 	lineNumBuffer         int
+	currentLine           string
 }
 
 func (l *Logger) Log(message string) {
@@ -55,6 +56,8 @@ func (te *TextEditor) debugPrint() {
 	fmt.Printf("Terminal Dimensions: %d, %d", te.width, te.height)
 	moveCursor(te.pageWidth+(hw/2), 4)
 	fmt.Printf("Page Dimensions: %d, %d", te.pageWidth, te.height-1)
+	moveCursor(te.pageWidth+(hw/2), 5)
+	fmt.Printf("Current Line: %s", te.currentLine)
 }
 
 func getLineNumWidth(num int) int {
@@ -64,6 +67,17 @@ func getLineNumWidth(num int) int {
 	return 1 + getLineNumWidth(num/10)
 }
 
+func getWordLength(content string, startIdx int) int {
+	wordLength := 0
+	for _, c := range content[startIdx:] {
+		if c == 32 || c == 10 {
+			return wordLength
+		}
+		wordLength += 1
+	}
+	return wordLength
+}
+
 func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 	moveCursor(xa, ya)
 	lines := 0
@@ -71,15 +85,14 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 	// pagePos := 0
 	pageSize := xb - xa
 	lineLength := 0
+	currentLine := ""
 	for ci, c := range t.fileContents {
 		t.Logger.Log(fmt.Sprintf("Bytes: %v, %q - CI: %d - lineLength%%pageSize==%d - pageSize: %d - lineLength: %d", c, c, ci, lineLength%pageSize, pageSize, lineLength))
-		// if string(c) == "\r" {
-		// 	moveCursor(xa, ya+lines)
-		// 	// } else if string(c) == "\n" || ci%xb == 0 {
-		// 	// } else if c == 10 || ci%xb == 0 {
-		// 	// } else if c == 10 || (ci+1)%pageSize == 0 {
-		// } else if c == 10 {
 		if c == 10 {
+			if t.cursorPosition[1] == lines {
+				t.currentLine = currentLine
+			}
+			currentLine = ""
 			lines += 1
 			lineLength = 0
 			moveCursor(xa, ya+lines)
@@ -87,25 +100,33 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 			continue
 		} else {
 			fmt.Print(string(c))
+			currentLine = fmt.Sprintf("%s%s", currentLine, string(c))
 			lineLength += 1
-			if lineLength%pageSize == 0 {
-				lines += 1
-				lineLength = 0
-				moveCursor(xa, ya+lines)
+			// ' '
+			if c == 32 {
+				t.Logger.Log("Found a space")
+				wordSizeLookAhead := getWordLength(t.fileContents, ci+1)
+				t.Logger.Log(fmt.Sprintf("word lookahead = %s (indexes %d, %d)", t.fileContents[ci:ci+wordSizeLookAhead+1], ci, ci+wordSizeLookAhead))
+				if (lineLength + wordSizeLookAhead) >= pageSize {
+					if t.cursorPosition[1] == lines {
+						t.currentLine = currentLine
+					}
+					currentLine = ""
+					lines += 1
+					lineLength = 0
+					moveCursor(xa, ya+lines)
+				}
+			} else {
+				if lineLength%pageSize == 0 {
+					if t.cursorPosition[1] == lines {
+						t.currentLine = currentLine
+					}
+					currentLine = ""
+					lines += 1
+					lineLength = 0
+					moveCursor(xa, ya+lines)
+				}
 			}
-			// if ci > 0 {
-			// 	if lines > 0 {
-			// 		if (ci+1)%(pageSize*lines) == 0 {
-			// 			lines += 1
-			// 			moveCursor(xa, ya+lines)
-			// 		}
-			// 	} else {
-			// 		if (ci+1)%pageSize == 0 {
-			// 			lines += 1
-			// 			moveCursor(xa, ya+lines)
-			// 		}
-			// 	}
-			// }
 		}
 	}
 }
@@ -121,19 +142,6 @@ func (te *TextEditor) render() {
 		moveCursor(te.pageWidth+te.lineNumBuffer, i)
 		fmt.Print("\u2590")
 	}
-	// fmt.Print("\033[H")
-	// moveCursor(lineNumBuffer, 0)
-	// fmt.Print(te.fileContents)
-	// for ci, c := range te.fileContents {
-	// 	// if string(c) == "\r" {
-	// 	// 	te.Logger.Log("Found carraige return")
-	// 	// }
-	// 	if ci%te.pageWidth == 0 {
-	//
-	// 	}
-	// 	fmt.Print(string(c))
-	// }
-	// te.Logger.Log(te.fileContents)
 	moveCursor(te.lineNumBuffer, te.height-2)
 	for j := range te.width - te.lineNumBuffer {
 		if j == te.pageWidth {
@@ -297,21 +305,49 @@ MAIN_LOOP:
 				}
 			} else {
 				// Arrow key
-				if buffer[2] == 65 && te.cursorPosition[1] > 0 {
-					// UP
-					te.cursorPosition[1] -= 1
-				} else if buffer[2] == 66 && te.cursorPosition[1] < te.height {
-					// DOWN
-					te.cursorPosition[1] += 1
-				} else if buffer[2] == 67 && te.cursorPosition[0] < te.width {
-					// RIGHT
-					te.cursorPosition[0] += 1
-				} else if buffer[2] == 68 && te.cursorPosition[0] > 0 {
-					// LEFT
-					te.cursorPosition[0] -= 1
-				}
+				// if buffer[2] == 65 && te.cursorPosition[1] > 0 {
+				// 	// UP
+				// 	te.cursorPosition[1] -= 1
+				// } else if buffer[2] == 66 && te.cursorPosition[1] < te.height {
+				// 	// DOWN
+				// 	te.cursorPosition[1] += 1
+				// } else if buffer[2] == 67 && te.cursorPosition[0] < te.width {
+				// 	// RIGHT
+				// 	te.cursorPosition[0] += 1
+				// } else if buffer[2] == 68 && te.cursorPosition[0] > 0 {
+				// 	// LEFT
+				// 	// te.cursorPosition[0] -= 1
+				// }
+
 				// Eventually need to make this relative to content
-				moveCursor(te.cursorPosition[0], te.cursorPosition[1])
+				// moveCursor(te.cursorPosition[0], te.cursorPosition[1])
+				if buffer[2] == 65 {
+					// UP
+					te.cursorPosition[1] = max(0, te.cursorPosition[1]-1)
+				} else if buffer[2] == 66 {
+					// DOWN
+					// Solve later, because we need to know where exactly in the doc the content ends
+					te.cursorPosition[1] = min(te.cursorPosition[1]+1, te.height-3)
+				} else if buffer[2] == 67 {
+					// RIGHT
+					// Realistically we need to know when the content on the current line ends, but for now we can simply use the pagewidth
+					if te.cursorPosition[0] >= te.pageWidth {
+						te.cursorPosition[0] = 0
+						te.cursorPosition[1] += 1
+					} else {
+						te.cursorPosition[0] += 1
+					}
+				} else if buffer[2] == 68 {
+					// LEFT
+					if te.cursorPosition[0] == 0 {
+						te.cursorPosition[1] = max(0, te.cursorPosition[1]-1)
+					} else {
+						te.cursorPosition[0] -= 1
+						// cannot read the current line because the current line is determined during the render loop.
+						// maybe instead use three vars? Line + either side?
+						te.cursorPosition[1] = te.pageWidth
+					}
+				}
 			}
 			// break MAIN_LOOP
 		// BACKSPACE?
