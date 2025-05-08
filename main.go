@@ -17,7 +17,9 @@ type Logger struct {
 type TextEditor struct {
 	Logger
 	fileContents          string
-	cursorPosition        [2]int
+	// cursorPosition        [2]int
+	// Position of the cursor within the fileContents
+	cursorPosition        int
 	commandCursorPosition int
 	fileName              string
 	fileObject            *os.File
@@ -29,6 +31,8 @@ type TextEditor struct {
 	command               string
 	lineNumBuffer         int
 	currentLine           string
+	x 					  int
+	y 					  int
 }
 
 func (l *Logger) Log(message string) {
@@ -47,7 +51,8 @@ func (l *Logger) Log(message string) {
 func (te *TextEditor) debugPrint() {
 	hw := te.pageWidth / 2
 	moveCursor(te.pageWidth+(hw/2), 0)
-	fmt.Printf("Cursor Position: %d, %d", te.cursorPosition[0], te.cursorPosition[1])
+	// fmt.Printf("Cursor Position: %d, %d", te.cursorPosition[0], te.cursorPosition[1])
+	fmt.Printf("Cursor Position: %d", te.cursorPosition)
 	moveCursor(te.pageWidth+(hw/2), 1)
 	fmt.Printf("Command Cursor Position: %d", te.commandCursorPosition)
 	moveCursor(te.pageWidth+(hw/2), 2)
@@ -86,14 +91,19 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 	pageSize := xb - xa
 	lineLength := 0
 	currentLine := ""
+	x, y := 0, 0
 	for ci, c := range t.fileContents {
 		t.Logger.Log(fmt.Sprintf("Bytes: %v, %q - CI: %d - lineLength%%pageSize==%d - pageSize: %d - lineLength: %d", c, c, ci, lineLength%pageSize, pageSize, lineLength))
+		x += 1
+		// newline \n
 		if c == 10 {
-			if t.cursorPosition[1] == lines {
-				t.currentLine = currentLine
-			}
+			// if t.cursorPosition[1] == lines {
+			// 	t.currentLine = currentLine
+			// }
 			currentLine = ""
 			lines += 1
+			y += 1
+			x = 0
 			lineLength = 0
 			moveCursor(xa, ya+lines)
 			t.Logger.Log(fmt.Sprintf("Moved cursor to (%d,%d)", xa, ya+lines))
@@ -108,25 +118,33 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 				wordSizeLookAhead := getWordLength(t.fileContents, ci+1)
 				t.Logger.Log(fmt.Sprintf("word lookahead = %s (indexes %d, %d)", t.fileContents[ci:ci+wordSizeLookAhead+1], ci, ci+wordSizeLookAhead))
 				if (lineLength + wordSizeLookAhead) >= pageSize {
-					if t.cursorPosition[1] == lines {
-						t.currentLine = currentLine
-					}
+					// if t.cursorPosition[1] == lines {
+					// 	t.currentLine = currentLine
+					// }
 					currentLine = ""
 					lines += 1
+					y += 1
+					x = 0
 					lineLength = 0
 					moveCursor(xa, ya+lines)
 				}
 			} else {
 				if lineLength%pageSize == 0 {
-					if t.cursorPosition[1] == lines {
-						t.currentLine = currentLine
-					}
+					// if t.cursorPosition[1] == lines {
+					// 	t.currentLine = currentLine
+					// }
 					currentLine = ""
 					lines += 1
+					y += 1
+					x = 0
 					lineLength = 0
 					moveCursor(xa, ya+lines)
 				}
 			}
+		}
+		if ci == t.cursorPosition {
+			t.x = x
+			t.y = y
 		}
 	}
 }
@@ -160,7 +178,7 @@ func (te *TextEditor) render() {
 	if te.IN_COMMAND_MODE {
 		moveCursor(te.commandCursorPosition+te.lineNumBuffer, te.height)
 	} else {
-		moveCursor(te.cursorPosition[0]+te.lineNumBuffer, te.cursorPosition[1])
+		moveCursor(te.x+te.lineNumBuffer, te.y)
 	}
 }
 
@@ -275,7 +293,7 @@ func main() {
 	// Using a 3 byte buffer because the arrow keys occur on the third index of
 	// an ESC command (ESC [ A,B,C,D)
 	buffer := make([]byte, 3)
-	l.Log(fmt.Sprintf("Cursor Positions %d, %d - Command Cursor %d - IN_COMMAND_MODE %b", te.cursorPosition[0], te.cursorPosition[1], te.commandCursorPosition, te.IN_COMMAND_MODE))
+	l.Log(fmt.Sprintf("Cursor Position %d - Command Cursor %d - IN_COMMAND_MODE %b", te.cursorPosition, te.commandCursorPosition, te.IN_COMMAND_MODE))
 	te.render()
 MAIN_LOOP:
 	for {
@@ -295,58 +313,48 @@ MAIN_LOOP:
 				// break MAIN_LOOP
 				// ESC [ LINE ; COL H
 				if te.IN_COMMAND_MODE {
-					// fmt.Printf("\033[%d;%dH", cursorPosition[0], commandCursorPosition)
-					moveCursor(te.cursorPosition[0], te.cursorPosition[1])
+					// moveCursor(te.cursorPosition[0], te.cursorPosition[1])
 					te.IN_COMMAND_MODE = false
 				} else {
 					// fmt.Printf("\033[%d;%dH", height, commandCursorPosition)
-					moveCursor(te.commandCursorPosition, te.height)
+					// moveCursor(te.commandCursorPosition, te.height)
 					te.IN_COMMAND_MODE = true
 				}
 			} else {
 				// Arrow key
-				// if buffer[2] == 65 && te.cursorPosition[1] > 0 {
-				// 	// UP
-				// 	te.cursorPosition[1] -= 1
-				// } else if buffer[2] == 66 && te.cursorPosition[1] < te.height {
-				// 	// DOWN
-				// 	te.cursorPosition[1] += 1
-				// } else if buffer[2] == 67 && te.cursorPosition[0] < te.width {
-				// 	// RIGHT
-				// 	te.cursorPosition[0] += 1
-				// } else if buffer[2] == 68 && te.cursorPosition[0] > 0 {
-				// 	// LEFT
-				// 	// te.cursorPosition[0] -= 1
-				// }
 
 				// Eventually need to make this relative to content
 				// moveCursor(te.cursorPosition[0], te.cursorPosition[1])
 				if buffer[2] == 65 {
 					// UP
-					te.cursorPosition[1] = max(0, te.cursorPosition[1]-1)
+					// te.cursorPosition[1] = max(0, te.cursorPosition[1]-1)
+					te.cursorPosition = max(0, te.cursorPosition - te.pageWidth)
 				} else if buffer[2] == 66 {
 					// DOWN
 					// Solve later, because we need to know where exactly in the doc the content ends
-					te.cursorPosition[1] = min(te.cursorPosition[1]+1, te.height-3)
+					// te.cursorPosition[1] = min(te.cursorPosition[1]+1, te.height-3)
+					te.cursorPosition = min(len(te.fileContents), te.cursorPosition+te.pageWidth)
 				} else if buffer[2] == 67 {
 					// RIGHT
 					// Realistically we need to know when the content on the current line ends, but for now we can simply use the pagewidth
-					if te.cursorPosition[0] >= te.pageWidth {
-						te.cursorPosition[0] = 0
-						te.cursorPosition[1] += 1
-					} else {
-						te.cursorPosition[0] += 1
-					}
+					// if te.cursorPosition[0] >= te.pageWidth {
+					// 	te.cursorPosition[0] = 0
+					// 	te.cursorPosition[1] += 1
+					// } else {
+					// 	te.cursorPosition[0] += 1
+					// }
+					te.cursorPosition = min(len(te.fileContents), te.cursorPosition+1)
 				} else if buffer[2] == 68 {
 					// LEFT
-					if te.cursorPosition[0] == 0 {
-						te.cursorPosition[1] = max(0, te.cursorPosition[1]-1)
-					} else {
-						te.cursorPosition[0] -= 1
-						// cannot read the current line because the current line is determined during the render loop.
-						// maybe instead use three vars? Line + either side?
-						te.cursorPosition[1] = te.pageWidth
-					}
+					// if te.cursorPosition[0] == 0 {
+					// 	te.cursorPosition[1] = max(0, te.cursorPosition[1]-1)
+					// } else {
+					// 	te.cursorPosition[0] -= 1
+					// 	// cannot read the current line because the current line is determined during the render loop.
+					// 	// maybe instead use three vars? Line + either side?
+					// 	te.cursorPosition[1] = te.pageWidth
+					// }
+					te.cursorPosition = max(0, te.cursorPosition-1)
 				}
 			}
 			// break MAIN_LOOP
@@ -377,16 +385,17 @@ MAIN_LOOP:
 				te.runCommand()
 				te.command = ""
 				te.commandCursorPosition = 0
-				moveCursor(te.cursorPosition[0], te.cursorPosition[1])
+				// moveCursor(te.cursorPosition[0], te.cursorPosition[1])
 				te.IN_COMMAND_MODE = false
 			} else {
 				// fmt.Print("\r\n")
-				l.Log(fmt.Sprintf("%d, %d", te.cursorPosition[0], te.cursorPosition[1]))
-				te.cursorPosition[0] = 0
-				te.cursorPosition[1] += 1
+				// l.Log(fmt.Sprintf("%d, %d", te.cursorPosition[0], te.cursorPosition[1]))
+				// te.cursorPosition[0] = 0
+				// te.cursorPosition[1] += 1
 				// moveCursor(cursorPosition[0], cursorPosition[1])
 				// fmt.Print("\r\n")
 				te.fileContents += "\r\n"
+				te.cursorPosition += 1
 				// fmt.Printf("Cursor Positions: %d, %d", cursorPosition[0], cursorPosition[1])
 				// l.Log(fmt.Sprintf("After manipulation: %d, %d", cursorPosition[0], cursorPosition[1]))
 			}
@@ -398,7 +407,7 @@ MAIN_LOOP:
 				te.commandCursorPosition += 1
 				te.command += fmt.Sprintf("%c", key)
 			} else {
-				te.cursorPosition[0] += 1
+				te.cursorPosition += 1
 				te.fileContents += fmt.Sprintf("%c", key)
 			}
 		}
