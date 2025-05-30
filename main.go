@@ -16,23 +16,24 @@ type Logger struct {
 
 type TextEditor struct {
 	Logger
-	fileContents          string
-	// cursorPosition        [2]int
+	fileContents string
 	// Position of the cursor within the fileContents
-	cursorPosition        int
-	commandCursorPosition int
-	fileName              string
-	fileObject            *os.File
-	pageWidth             int
-	pageHeight            int
-	width                 int
-	height                int
-	IN_COMMAND_MODE       bool
-	command               string
-	lineNumBuffer         int
-	currentLine           string
-	x 					  int
-	y 					  int
+	cursorPosition           int
+	commandCursorPosition    int
+	fileName                 string
+	fileObject               *os.File
+	pageWidth                int
+	pageHeight               int
+	width                    int
+	height                   int
+	IN_COMMAND_MODE          bool
+	command                  string
+	lineNumBuffer            int
+	currentLine              string
+	x                        int
+	y                        int
+	characterCoordMap        map[int][2]int
+	reverseCharacterCoordMap map[[2]int]int
 }
 
 func (l *Logger) Log(message string) {
@@ -93,8 +94,8 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 	currentLine := ""
 	x, y := 0, 0
 	for ci, c := range t.fileContents {
-		t.Logger.Log(fmt.Sprintf("Bytes: %v, %q - CI: %d - lineLength%%pageSize==%d - pageSize: %d - lineLength: %d", c, c, ci, lineLength%pageSize, pageSize, lineLength))
-		x += 1
+		// t.Logger.Log(fmt.Sprintf("Bytes: %v, %q - CI: %d - lineLength%%pageSize==%d - pageSize: %d - lineLength: %d", c, c, ci, lineLength%pageSize, pageSize, lineLength))
+		// x += 1
 		// newline \n
 		if c == 10 {
 			// if t.cursorPosition[1] == lines {
@@ -106,7 +107,9 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 			x = 0
 			lineLength = 0
 			moveCursor(xa, ya+lines)
-			t.Logger.Log(fmt.Sprintf("Moved cursor to (%d,%d)", xa, ya+lines))
+			// t.Logger.Log(fmt.Sprintf("Moved cursor to (%d,%d)", xa, ya+lines))
+			t.characterCoordMap[ci] = [2]int{x, y}
+			t.reverseCharacterCoordMap[[2]int{x, y}] = ci
 			continue
 		} else {
 			fmt.Print(string(c))
@@ -114,13 +117,10 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 			lineLength += 1
 			// ' '
 			if c == 32 {
-				t.Logger.Log("Found a space")
+				// t.Logger.Log("Found a space")
 				wordSizeLookAhead := getWordLength(t.fileContents, ci+1)
-				t.Logger.Log(fmt.Sprintf("word lookahead = %s (indexes %d, %d)", t.fileContents[ci:ci+wordSizeLookAhead+1], ci, ci+wordSizeLookAhead))
+				// t.Logger.Log(fmt.Sprintf("word lookahead = %s (indexes %d, %d)", t.fileContents[ci:ci+wordSizeLookAhead+1], ci, ci+wordSizeLookAhead))
 				if (lineLength + wordSizeLookAhead) >= pageSize {
-					// if t.cursorPosition[1] == lines {
-					// 	t.currentLine = currentLine
-					// }
 					currentLine = ""
 					lines += 1
 					y += 1
@@ -130,9 +130,6 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 				}
 			} else {
 				if lineLength%pageSize == 0 {
-					// if t.cursorPosition[1] == lines {
-					// 	t.currentLine = currentLine
-					// }
 					currentLine = ""
 					lines += 1
 					y += 1
@@ -142,10 +139,14 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 				}
 			}
 		}
-		if ci == t.cursorPosition {
-			t.x = x
-			t.y = y
-		}
+		t.characterCoordMap[ci] = [2]int{x, y}
+		t.reverseCharacterCoordMap[[2]int{x, y}] = ci
+		x += 1
+		// t.Logger.Log(fmt.Sprintf("Character Coords for %s: %v", string(c), t.characterCoordMap[ci]))
+		// if ci == t.cursorPosition {
+		// 	t.x = x
+		// 	t.y = y
+		// }
 	}
 }
 
@@ -178,7 +179,8 @@ func (te *TextEditor) render() {
 	if te.IN_COMMAND_MODE {
 		moveCursor(te.commandCursorPosition+te.lineNumBuffer, te.height)
 	} else {
-		moveCursor(te.x+te.lineNumBuffer, te.y)
+		// te.Logger.Log(fmt.Sprintf("Cursor Coord: %d, Cursor X: %d, Cursor Y: %d", te.cursorPosition, te.characterCoordMap[te.cursorPosition][0], te.characterCoordMap[te.cursorPosition][1]))
+		moveCursor(te.characterCoordMap[te.cursorPosition][0]+te.lineNumBuffer, te.characterCoordMap[te.cursorPosition][1])
 	}
 }
 
@@ -215,6 +217,108 @@ func (te TextEditor) runCommand() {
 		}
 		fmt.Printf("Saved file in %s", te.fileName)
 	}
+}
+
+func (te *TextEditor) updateFileCursor(key byte) {
+	currentCursorCoords := te.characterCoordMap[te.cursorPosition]
+	switch key {
+	case 65:
+		// UP
+		foundPosition := false
+		xmod := 0
+		if currentCursorCoords[1] == 0 {
+			return
+		}
+		for !foundPosition {
+			newx := currentCursorCoords[0] - xmod
+			newy := currentCursorCoords[1] - 1
+			te.Logger.Log(fmt.Sprintf("Not found position, xmod %v newx %v newy %v", xmod, newx, newy))
+
+			if newy < 0 {
+				te.Logger.Log("Hit newy")
+				return
+			}
+			if newx < 0 {
+				te.Logger.Log("Hit newx")
+				return
+			}
+			newPosition := [2]int{newx, newy}
+			newCoords, exists := te.reverseCharacterCoordMap[newPosition]
+			te.Logger.Log(fmt.Sprintf("newCoords %v newPosition %v exists %v", newCoords, newPosition, exists))
+			if !exists {
+				xmod += 1
+				continue
+			} else {
+				te.cursorPosition = newCoords
+				foundPosition = true
+			}
+		}
+	case 66:
+		// DOWN
+		// te.Logger.Log(fmt.Sprintf("DOWN: cursorPosition: %d, pageWidth: %d, Slice %v", te.cursorPosition, te.pageWidth, []byte(te.fileContents[te.cursorPosition:te.cursorPosition+te.pageWidth+10])))
+		foundPosition := false
+		xmod := 0
+		for !foundPosition {
+			newx := currentCursorCoords[0] - xmod
+			newy := currentCursorCoords[1] + 1
+			if newx < 0 {
+				return
+			}
+			newPosition := [2]int{newx, newy}
+			te.Logger.Log(fmt.Sprintf("Current Coords: %v, newCoords: %v, newCursorCoords: %v", currentCursorCoords, newPosition, te.reverseCharacterCoordMap[newPosition]))
+			newCoords, exists := te.reverseCharacterCoordMap[newPosition]
+			if !exists {
+				xmod += 1
+				continue
+			} else {
+				te.cursorPosition = newCoords
+				foundPosition = true
+			}
+		}
+	case 67:
+		// RIGHT
+		if te.cursorPosition == len(te.fileContents) {
+			te.Logger.Log("Hit the end of the file contents")
+			return
+		}
+		newPosition := [2]int{currentCursorCoords[0] + 1, currentCursorCoords[1]}
+		newCoords, exists := te.reverseCharacterCoordMap[newPosition]
+		if !exists {
+			newPosition := [2]int{0, currentCursorCoords[1] + 1}
+			newCoords, exists = te.reverseCharacterCoordMap[newPosition]
+			if !exists {
+				return
+			} else {
+				te.cursorPosition = newCoords
+			}
+		} else {
+			te.cursorPosition = newCoords
+		}
+	case 68:
+		// LEFT
+		if te.cursorPosition == 0 {
+			return
+		}
+
+		foundPosition := false
+		xmod := 1
+		ymod := 0
+		for !foundPosition {
+			newPosition := [2]int{currentCursorCoords[0] - xmod, currentCursorCoords[1] - ymod}
+			newCoords, exists := te.reverseCharacterCoordMap[newPosition]
+			if !exists {
+				xmod = te.pageWidth
+				ymod -= 1
+				continue
+			} else {
+				te.cursorPosition = newCoords
+				foundPosition = true
+			}
+		}
+	default:
+		return
+	}
+	return
 }
 
 func main() {
@@ -255,11 +359,13 @@ func main() {
 	l.Log(fmt.Sprintf("CommandLine Args: %v", os.Args))
 	te := &TextEditor{
 		// pageWidth: w/ 2,
-		pageWidth:     w / 6,
-		width:         w,
-		height:        h,
-		Logger:        l,
-		lineNumBuffer: getLineNumWidth(h) + 1,
+		pageWidth:                w / 6,
+		width:                    w,
+		height:                   h,
+		Logger:                   l,
+		lineNumBuffer:            getLineNumWidth(h) + 1,
+		characterCoordMap:        make(map[int][2]int),
+		reverseCharacterCoordMap: make(map[[2]int]int),
 	}
 	if len(os.Args) > 1 {
 		// te = &TextEditor{
@@ -307,76 +413,36 @@ MAIN_LOOP:
 			break MAIN_LOOP
 		// ESC
 		case 27:
-			// fmt.Printf("\n\rBuffer: %v", buffer)
 			if buffer[1] == 0 && buffer[2] == 0 {
 				// Just a pure ESC
-				// break MAIN_LOOP
-				// ESC [ LINE ; COL H
 				if te.IN_COMMAND_MODE {
-					// moveCursor(te.cursorPosition[0], te.cursorPosition[1])
 					te.IN_COMMAND_MODE = false
 				} else {
-					// fmt.Printf("\033[%d;%dH", height, commandCursorPosition)
-					// moveCursor(te.commandCursorPosition, te.height)
 					te.IN_COMMAND_MODE = true
 				}
 			} else {
-				// Arrow key
-
-				// Eventually need to make this relative to content
-				// moveCursor(te.cursorPosition[0], te.cursorPosition[1])
-				if buffer[2] == 65 {
-					// UP
-					// te.cursorPosition[1] = max(0, te.cursorPosition[1]-1)
-					te.cursorPosition = max(0, te.cursorPosition - te.pageWidth)
-				} else if buffer[2] == 66 {
-					// DOWN
-					// Solve later, because we need to know where exactly in the doc the content ends
-					// te.cursorPosition[1] = min(te.cursorPosition[1]+1, te.height-3)
-					te.cursorPosition = min(len(te.fileContents), te.cursorPosition+te.pageWidth)
-				} else if buffer[2] == 67 {
-					// RIGHT
-					// Realistically we need to know when the content on the current line ends, but for now we can simply use the pagewidth
-					// if te.cursorPosition[0] >= te.pageWidth {
-					// 	te.cursorPosition[0] = 0
-					// 	te.cursorPosition[1] += 1
-					// } else {
-					// 	te.cursorPosition[0] += 1
-					// }
-					te.cursorPosition = min(len(te.fileContents), te.cursorPosition+1)
-				} else if buffer[2] == 68 {
-					// LEFT
-					// if te.cursorPosition[0] == 0 {
-					// 	te.cursorPosition[1] = max(0, te.cursorPosition[1]-1)
-					// } else {
-					// 	te.cursorPosition[0] -= 1
-					// 	// cannot read the current line because the current line is determined during the render loop.
-					// 	// maybe instead use three vars? Line + either side?
-					// 	te.cursorPosition[1] = te.pageWidth
-					// }
-					te.cursorPosition = max(0, te.cursorPosition-1)
+				// Arrow keys (for now)
+				if buffer[2] >= 65 && buffer[2] <= 68 {
+					te.updateFileCursor(buffer[2])
 				}
 			}
-			// break MAIN_LOOP
-		// BACKSPACE?
+		case 126:
+			// DELETE
+			if te.IN_COMMAND_MODE {
+				te.command = te.command[:len(te.command)]
+			} else {
+				te.fileContents = te.fileContents[:max(0, te.cursorPosition)] + te.fileContents[te.cursorPosition+1:]
+			}
 		case 127:
-			// fmt.Print("DEBUG")
+			// BACKSPACE
 			if te.IN_COMMAND_MODE {
 				te.command = te.command[:len(te.command)-1]
-				// moveCursor(len(te.command), te.height)
-				// fmt.Print(" ")
-				// moveCursor(len(te.command), te.height)
-				te.commandCursorPosition -= 1
 			} else {
-				// Handle cross line later
-				// if te.cursorPosition[0] > 0 {
-				// 	te.fileContents = te.fileContents[:len(te.fileContents)]
-				// 	// te.cursorPosition[0] -= 1
-				// 	// moveCursor(te.cursorPosition[0], te.cursorPosition[1])
-				// 	// fmt.Print(" ")
-				// 	// moveCursor(te.cursorPosition[0], te.cursorPosition[1])
-				// }
-				te.fileContents = te.fileContents[:len(te.fileContents)-1]
+				if te.cursorPosition-1 < 0 {
+					continue
+				}
+				te.fileContents = te.fileContents[:te.cursorPosition-1] + te.fileContents[te.cursorPosition:]
+				te.cursorPosition -= 1
 			}
 		// ENTER
 		case 13:
@@ -394,8 +460,9 @@ MAIN_LOOP:
 				// te.cursorPosition[1] += 1
 				// moveCursor(cursorPosition[0], cursorPosition[1])
 				// fmt.Print("\r\n")
-				te.fileContents += "\r\n"
-				te.cursorPosition += 1
+				// te.fileContents += "\r\n"
+				// te.cursorPosition += 1
+				te.fileContents = te.fileContents[:te.cursorPosition] + "\r\n" + te.fileContents[te.cursorPosition:]
 				// fmt.Printf("Cursor Positions: %d, %d", cursorPosition[0], cursorPosition[1])
 				// l.Log(fmt.Sprintf("After manipulation: %d, %d", cursorPosition[0], cursorPosition[1]))
 			}
@@ -407,8 +474,10 @@ MAIN_LOOP:
 				te.commandCursorPosition += 1
 				te.command += fmt.Sprintf("%c", key)
 			} else {
-				te.cursorPosition += 1
-				te.fileContents += fmt.Sprintf("%c", key)
+				// te.cursorPosition += 1
+				// te.fileContents += fmt.Sprintf("%c", key)
+				// Insert new character into the file contents
+				te.fileContents = te.fileContents[:te.cursorPosition] + fmt.Sprintf("%c", key) + te.fileContents[te.cursorPosition:]
 			}
 		}
 
