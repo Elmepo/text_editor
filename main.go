@@ -388,20 +388,33 @@ MAIN_LOOP:
 			} else {
 				// Arrow keys (for now)
 				if buffer[2] >= 65 && buffer[2] <= 68 {
-					te.updateFileCursor(buffer[2])
+					if te.IN_COMMAND_MODE {
+						if buffer[2] == 67 {
+							// RIGHT
+							te.commandCursorPosition = min(len(te.command), te.commandCursorPosition+1)
+						} else if buffer[2] == 68 {
+							// LEFT
+							te.commandCursorPosition = max(0, te.commandCursorPosition-1)
+						}
+					} else {
+						te.updateFileCursor(buffer[2])
+					}
 				}
 			}
 		case 126:
 			// DELETE
 			if te.IN_COMMAND_MODE {
-				te.command = te.command[:len(te.command)]
+				// te.command = te.command[:len(te.command)]
+				te.command = te.command[:max(0, te.commandCursorPosition)] + te.command[te.commandCursorPosition+1:]
 			} else {
 				te.fileContents = te.fileContents[:max(0, te.cursorPosition)] + te.fileContents[te.cursorPosition+1:]
 			}
 		case 127:
 			// BACKSPACE
 			if te.IN_COMMAND_MODE {
-				te.command = te.command[:len(te.command)-1]
+				te.command = te.command[:te.commandCursorPosition-1] + te.command[te.commandCursorPosition:]
+				te.commandCursorPosition -= 1
+				// te.command = te.command[:len(te.command)-1]
 			} else {
 				if te.cursorPosition-1 < 0 {
 					continue

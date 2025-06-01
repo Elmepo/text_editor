@@ -6,7 +6,7 @@
 - [x] Fix arrow keys
 - [x] Fix backspace across lines
 - [x] backspace cursor positioning is pretty bad?
-- [ ] fix delete and backspace in command buffers
+- [x] fix delete and backspace in command buffers
 - [x] Look into preventing the automatic overflow for characters to handle it within the text editor (i.e. overflow y, line break, etc)
     - [x] Prevent automatic overflow
     - [?] Shift "window" to always display the cursor
@@ -27,3 +27,4 @@
 - [ ] Rendering Improvements:
     - [ ] Only render what's important: Render Line numbers and debug information only at the start and (eventually) when the page grows to be more than the terminal size and the cursor moves down enough.
     - [ ] Only render text updates, i.e. don't re-render on every cursor movement?
+- [ ] Think I should change from `switch char: if command_mode ? command logic : file logic` to `if command_mode ? switch char : switch char`? Really just thinking I might need to have the logic in two seperate files/receviers entirely.
