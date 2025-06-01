@@ -52,7 +52,6 @@ func (l *Logger) Log(message string) {
 func (te *TextEditor) debugPrint() {
 	hw := te.pageWidth / 2
 	moveCursor(te.pageWidth+(hw/2), 0)
-	// fmt.Printf("Cursor Position: %d, %d", te.cursorPosition[0], te.cursorPosition[1])
 	fmt.Printf("Cursor Position: %d", te.cursorPosition)
 	moveCursor(te.pageWidth+(hw/2), 1)
 	fmt.Printf("Command Cursor Position: %d", te.commandCursorPosition)
@@ -88,19 +87,13 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 	moveCursor(xa, ya)
 	lines := 0
 	t.Logger.Log(fmt.Sprintf("xa: %d, xb: %d, ya: %d, yb: %d", xa, xb, ya, yb))
-	// pagePos := 0
 	pageSize := xb - xa
 	lineLength := 0
 	currentLine := ""
 	x, y := 0, 0
 	for ci, c := range t.fileContents {
 		// t.Logger.Log(fmt.Sprintf("Bytes: %v, %q - CI: %d - lineLength%%pageSize==%d - pageSize: %d - lineLength: %d", c, c, ci, lineLength%pageSize, pageSize, lineLength))
-		// x += 1
-		// newline \n
 		if c == 10 {
-			// if t.cursorPosition[1] == lines {
-			// 	t.currentLine = currentLine
-			// }
 			currentLine = ""
 			lines += 1
 			y += 1
@@ -117,7 +110,6 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 			lineLength += 1
 			// ' '
 			if c == 32 {
-				// t.Logger.Log("Found a space")
 				wordSizeLookAhead := getWordLength(t.fileContents, ci+1)
 				// t.Logger.Log(fmt.Sprintf("word lookahead = %s (indexes %d, %d)", t.fileContents[ci:ci+wordSizeLookAhead+1], ci, ci+wordSizeLookAhead))
 				if (lineLength + wordSizeLookAhead) >= pageSize {
@@ -143,18 +135,12 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 		t.reverseCharacterCoordMap[[2]int{x, y}] = ci
 		x += 1
 		// t.Logger.Log(fmt.Sprintf("Character Coords for %s: %v", string(c), t.characterCoordMap[ci]))
-		// if ci == t.cursorPosition {
-		// 	t.x = x
-		// 	t.y = y
-		// }
 	}
 }
 
 func (te *TextEditor) render() {
-	// Wipe the current window, then redraw all the file contents?
-	// lineNumBuffer := getLineNumWidth(te.height) + 1
+	// Wipe the current window, then redraw all the file contents
 	fmt.Print("\033[2J")
-	// te.fileContents += "this is a render test"
 	for i := range te.height - 1 {
 		moveCursor(0, i)
 		fmt.Printf("%2d", i)
@@ -169,7 +155,6 @@ func (te *TextEditor) render() {
 			fmt.Print("\u2584")
 		}
 	}
-	// te.Logger.Log(fmt.Sprintf("Page Width: %d", te.pageWidth))
 	// Think I shouldn't need te.lineNumBuffer for xb. Suspect I can refactor to make pagewidth
 	// relative to the overall lineNumBuffer???
 	te.printContents(te.lineNumBuffer, te.pageWidth+te.lineNumBuffer, 0, te.height-2)
@@ -179,7 +164,6 @@ func (te *TextEditor) render() {
 	if te.IN_COMMAND_MODE {
 		moveCursor(te.commandCursorPosition+te.lineNumBuffer, te.height)
 	} else {
-		// te.Logger.Log(fmt.Sprintf("Cursor Coord: %d, Cursor X: %d, Cursor Y: %d", te.cursorPosition, te.characterCoordMap[te.cursorPosition][0], te.characterCoordMap[te.cursorPosition][1]))
 		moveCursor(te.characterCoordMap[te.cursorPosition][0]+te.lineNumBuffer, te.characterCoordMap[te.cursorPosition][1])
 	}
 }
@@ -189,9 +173,7 @@ func moveCursor(x int, y int) {
 	fmt.Printf("\033[%d;%dH", y+1, x)
 }
 
-// func runCommand(com string, temp string, width int, height int) {
 func (te TextEditor) runCommand() {
-	// fmt.Print(com)
 	commandSlice := strings.Split(te.command, " ")
 	switch commandSlice[0] {
 	case "save":
@@ -255,7 +237,6 @@ func (te *TextEditor) updateFileCursor(key byte) {
 		}
 	case 66:
 		// DOWN
-		// te.Logger.Log(fmt.Sprintf("DOWN: cursorPosition: %d, pageWidth: %d, Slice %v", te.cursorPosition, te.pageWidth, []byte(te.fileContents[te.cursorPosition:te.cursorPosition+te.pageWidth+10])))
 		foundPosition := false
 		xmod := 0
 		for !foundPosition {
@@ -354,11 +335,9 @@ func main() {
 		panic(err)
 	}
 	l.Log(fmt.Sprintf("Terminal size: %d x %d", w, h))
-	// fmt.Printf("Terminal size: %d x %d\r\n", width, height)
 
 	l.Log(fmt.Sprintf("CommandLine Args: %v", os.Args))
 	te := &TextEditor{
-		// pageWidth: w/ 2,
 		pageWidth:                w / 6,
 		width:                    w,
 		height:                   h,
@@ -368,15 +347,7 @@ func main() {
 		reverseCharacterCoordMap: make(map[[2]int]int),
 	}
 	if len(os.Args) > 1 {
-		// te = &TextEditor{
-		// 	fileName: os.Args[1],
-		// 	width:    w - 20,
-		// 	height:   h,
-		// 	Logger:   l,
-		// }
 		te.fileName = os.Args[1]
-		// dat, err := os.ReadFile(te.fileName)
-		// fo, err := os.Open
 		te.fileObject, err = os.OpenFile(te.fileName, os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			panic(err)
@@ -387,12 +358,6 @@ func main() {
 			panic(err)
 		}
 		te.fileContents = string(fileBytes)
-		// } else {
-		// 	te = &TextEditor{
-		// 		width:  w - 20,
-		// 		height: h,
-		// 		Logger: l,
-		// 	}
 	}
 	fmt.Print(te.fileContents)
 
@@ -446,37 +411,20 @@ MAIN_LOOP:
 			}
 		// ENTER
 		case 13:
-			// l.Log(fmt.Sprintf("Enter pressed: Cursor Positions %d, %d - Command Cursor %d - IN_COMMAND_MODE %b", cursorPosition[0], cursorPosition[1], commandCursorPosition, IN_COMMAND_MODE))
 			if te.IN_COMMAND_MODE {
 				te.runCommand()
 				te.command = ""
 				te.commandCursorPosition = 0
-				// moveCursor(te.cursorPosition[0], te.cursorPosition[1])
 				te.IN_COMMAND_MODE = false
 			} else {
-				// fmt.Print("\r\n")
-				// l.Log(fmt.Sprintf("%d, %d", te.cursorPosition[0], te.cursorPosition[1]))
-				// te.cursorPosition[0] = 0
-				// te.cursorPosition[1] += 1
-				// moveCursor(cursorPosition[0], cursorPosition[1])
-				// fmt.Print("\r\n")
-				// te.fileContents += "\r\n"
-				// te.cursorPosition += 1
 				te.fileContents = te.fileContents[:te.cursorPosition] + "\r\n" + te.fileContents[te.cursorPosition:]
-				// fmt.Printf("Cursor Positions: %d, %d", cursorPosition[0], cursorPosition[1])
-				// l.Log(fmt.Sprintf("After manipulation: %d, %d", cursorPosition[0], cursorPosition[1]))
 			}
 		default:
 			l.Log(fmt.Sprintf("Default Case. Buffer: %v", buffer))
-			// fmt.Printf("%v", buffer)
-			// fmt.Printf("%c", key)
 			if te.IN_COMMAND_MODE {
 				te.commandCursorPosition += 1
 				te.command += fmt.Sprintf("%c", key)
 			} else {
-				// te.cursorPosition += 1
-				// te.fileContents += fmt.Sprintf("%c", key)
-				// Insert new character into the file contents
 				te.fileContents = te.fileContents[:te.cursorPosition] + fmt.Sprintf("%c", key) + te.fileContents[te.cursorPosition:]
 			}
 		}
