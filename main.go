@@ -10,32 +10,6 @@ import (
 	"golang.org/x/term"
 )
 
-type Logger struct {
-	FileName string
-}
-
-type TextEditor struct {
-	Logger
-	fileContents string
-	// Position of the cursor within the fileContents
-	cursorPosition           int
-	commandCursorPosition    int
-	fileName                 string
-	fileObject               *os.File
-	pageWidth                int
-	pageHeight               int
-	width                    int
-	height                   int
-	IN_COMMAND_MODE          bool
-	command                  string
-	lineNumBuffer            int
-	currentLine              string
-	x                        int
-	y                        int
-	characterCoordMap        map[int][2]int
-	reverseCharacterCoordMap map[[2]int]int
-}
-
 func (l *Logger) Log(message string) {
 	f, err := os.OpenFile(l.FileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -65,29 +39,11 @@ func (te *TextEditor) debugPrint() {
 	fmt.Printf("Current Line: %s", te.currentLine)
 }
 
-func getLineNumWidth(num int) int {
-	if num%10 == 0 {
-		return 1
-	}
-	return 1 + getLineNumWidth(num/10)
-}
-
-func getWordLength(content string, startIdx int) int {
-	wordLength := 0
-	for _, c := range content[startIdx:] {
-		if c == 32 || c == 10 {
-			return wordLength
-		}
-		wordLength += 1
-	}
-	return wordLength
-}
-
-func (t *TextEditor) printContents(xa, xb, ya, yb int) {
-	moveCursor(xa, ya)
+func (t *TextEditor) printContents(region *Region) {
+	moveCursor(region.xa, region.ya)
 	lines := 0
-	t.Logger.Log(fmt.Sprintf("xa: %d, xb: %d, ya: %d, yb: %d", xa, xb, ya, yb))
-	pageSize := xb - xa
+	t.Logger.Log(fmt.Sprintf("xa: %d, xb: %d, ya: %d, yb: %d", region.xa, region.xb, region.ya, region.yb))
+	pageSize := region.xb - region.xa
 	lineLength := 0
 	currentLine := ""
 	x, y := 0, 0
@@ -99,7 +55,7 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 			y += 1
 			x = 0
 			lineLength = 0
-			moveCursor(xa, ya+lines)
+			moveCursor(region.xa, region.ya+lines)
 			// t.Logger.Log(fmt.Sprintf("Moved cursor to (%d,%d)", xa, ya+lines))
 			t.characterCoordMap[ci] = [2]int{x, y}
 			t.reverseCharacterCoordMap[[2]int{x, y}] = ci
@@ -118,7 +74,7 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 					y += 1
 					x = 0
 					lineLength = 0
-					moveCursor(xa, ya+lines)
+					moveCursor(region.xa, region.ya+lines)
 				}
 			} else {
 				if lineLength%pageSize == 0 {
@@ -127,7 +83,7 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 					y += 1
 					x = 0
 					lineLength = 0
-					moveCursor(xa, ya+lines)
+					moveCursor(region.xa, region.ya+lines)
 				}
 			}
 		}
@@ -137,6 +93,10 @@ func (t *TextEditor) printContents(xa, xb, ya, yb int) {
 		// t.Logger.Log(fmt.Sprintf("Character Coords for %s: %v", string(c), t.characterCoordMap[ci]))
 	}
 }
+
+// func (te *TextEditor) updateRegions() {
+//
+// }
 
 func (te *TextEditor) render() {
 	// Wipe the current window, then redraw all the file contents
@@ -157,9 +117,11 @@ func (te *TextEditor) render() {
 	}
 	// Think I shouldn't need te.lineNumBuffer for xb. Suspect I can refactor to make pagewidth
 	// relative to the overall lineNumBuffer???
-	te.printContents(te.lineNumBuffer, te.pageWidth+te.lineNumBuffer, 0, te.height-2)
-	moveCursor(te.lineNumBuffer, te.height)
-	fmt.Print(te.command)
+	// te.printContents(te.lineNumBuffer, te.pageWidth+te.lineNumBuffer, 0, te.height-2)
+	// te.printContents(te.fileRegion)
+	// te.updateRegions()
+	// moveCursor(te.lineNumBuffer, te.height)
+	// fmt.Print(te.command)
 	te.debugPrint()
 	if te.IN_COMMAND_MODE {
 		moveCursor(te.commandCursorPosition+te.lineNumBuffer, te.height)
@@ -168,10 +130,10 @@ func (te *TextEditor) render() {
 	}
 }
 
-func moveCursor(x int, y int) {
-	// ESC [ LINE ; COL H
-	fmt.Printf("\033[%d;%dH", y+1, x)
-}
+// func moveCursor(x int, y int) {
+// 	// ESC [ LINE ; COL H
+// 	fmt.Printf("\033[%d;%dH", y+1, x)
+// }
 
 func (te TextEditor) runCommand() {
 	commandSlice := strings.Split(te.command, " ")
@@ -282,20 +244,54 @@ func (te *TextEditor) updateFileCursor(key byte) {
 		}
 
 		foundPosition := false
-		xmod := 1
-		ymod := 0
+		x := currentCursorCoords[0] - 1
+		y := currentCursorCoords[1]
+
 		for !foundPosition {
-			newPosition := [2]int{currentCursorCoords[0] - xmod, currentCursorCoords[1] - ymod}
+			newPosition := [2]int{x, y}
 			newCoords, exists := te.reverseCharacterCoordMap[newPosition]
+			te.Logger.Log(fmt.Sprintf("New Coords: %v, exists: %v, newPosition: %v, x: %v, y: %v", newCoords, exists, newPosition, x, y))
 			if !exists {
-				xmod = te.pageWidth
-				ymod -= 1
-				continue
+				if x <= 0 {
+					if y <= 0 {
+						return
+					} else {
+						x = te.pageWidth
+						y -= 1
+					}
+				}
+				x -= 1
 			} else {
 				te.cursorPosition = newCoords
 				foundPosition = true
 			}
 		}
+
+		// for !foundPosition {
+		// 	newPosition := [2]int{currentCursorCoords[0] - xmod, currentCursorCoords[1] - ymod}
+		// 	newCoords, exists := te.reverseCharacterCoordMap[newPosition]
+		// 	te.Logger.Log(fmt.Sprintf("New Coords: %v, exists: %v, newPosition: %v, xmod: %v, ymod: %v", newCoords, exists, newPosition, xmod, ymod))
+		// 	if !exists {
+		// 		if ((currentCursorCoords[0] - xmod) == 0) && ((currentCursorCoords[1] - ymod) == 0) {
+		// 			te.Logger.Log("Hit the start of the file")
+		// 			return
+		// 		}
+		// 		// If we've reached the start of the current line
+		// 		if (currentCursorCoords[0] - xmod) <= 0 {
+		// 			te.Logger.Log("Hit the start of the line")
+		// 			xmod = te.pageWidth
+		// 			ymod += 1
+		// 		} else {
+		// 			xmod += 1
+		// 		}
+		// 		// xmod = te.pageWidth
+		// 		// ymod -= 1
+		// 		continue
+		// 	} else {
+		// 		te.cursorPosition = newCoords
+		// 		foundPosition = true
+		// 	}
+		// }
 	default:
 		return
 	}
@@ -346,6 +342,9 @@ func main() {
 		characterCoordMap:        make(map[int][2]int),
 		reverseCharacterCoordMap: make(map[[2]int]int),
 	}
+	// te.printContents(te.lineNumBuffer, te.pageWidth+te.lineNumBuffer, 0, te.height-2)
+	te.fileRegion = &Region{Logger: te.Logger, xa: te.lineNumBuffer, xb: te.pageWidth + te.lineNumBuffer, ya: 0, yb: te.height - 2}
+	te.commandRegion = &Region{xa: 0, xb: te.width, ya: te.height - 2, yb: te.height}
 	if len(os.Args) > 1 {
 		te.fileName = os.Args[1]
 		te.fileObject, err = os.OpenFile(te.fileName, os.O_CREATE|os.O_RDWR, 0644)
@@ -365,12 +364,16 @@ func main() {
 	// an ESC command (ESC [ A,B,C,D)
 	buffer := make([]byte, 3)
 	l.Log(fmt.Sprintf("Cursor Position %d - Command Cursor %d - IN_COMMAND_MODE %b", te.cursorPosition, te.commandCursorPosition, te.IN_COMMAND_MODE))
-	te.render()
+	// te.characterCoordMap, te.reverseCharacterCoordMap = te.fileRegion.Redraw(te.fileContents)
+	// te.render()
 MAIN_LOOP:
 	for {
+		te.render()
+		te.characterCoordMap, te.reverseCharacterCoordMap = te.fileRegion.Redraw(te.fileContents)
 		_, err := os.Stdin.Read(buffer)
 		if err != nil {
-			break
+			te.Logger.Log(fmt.Sprint(err))
+			break MAIN_LOOP
 		}
 		switch key := buffer[0]; key {
 		// CTRL-C
@@ -388,6 +391,7 @@ MAIN_LOOP:
 			} else {
 				// Arrow keys (for now)
 				if buffer[2] >= 65 && buffer[2] <= 68 {
+					te.Logger.Log(fmt.Sprintf("%v", buffer))
 					if te.IN_COMMAND_MODE {
 						if buffer[2] == 67 {
 							// RIGHT
@@ -437,6 +441,7 @@ MAIN_LOOP:
 			if te.IN_COMMAND_MODE {
 				te.commandCursorPosition += 1
 				te.command += fmt.Sprintf("%c", key)
+				// te.commandRegion.Redraw(te.command)
 			} else {
 				te.fileContents = te.fileContents[:te.cursorPosition] + fmt.Sprintf("%c", key) + te.fileContents[te.cursorPosition:]
 			}
@@ -447,6 +452,7 @@ MAIN_LOOP:
 		for bi := range len(buffer) {
 			buffer[bi] = 0
 		}
-		te.render()
+		// te.render()
+		// te.characterCoordMap, te.reverseCharacterCoordMap = te.fileRegion.Redraw(te.fileContents)
 	}
 }
