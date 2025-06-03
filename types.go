@@ -3,11 +3,20 @@ package main
 import "os"
 
 type Region struct {
-	Logger Logger
-	xa     int
-	xb     int
-	ya     int
-	yb     int
+	Logger         Logger
+	windowXA       int
+	windowXB       int
+	windowYA       int
+	windowYB       int
+	xa             int
+	xb             int
+	ya             int
+	yb             int
+	cursorPosition int
+	fileCoords     map[int][2]int
+	cursorCoords   map[[2]int]int
+	Content        string
+	lineNumBuffer  int
 }
 
 type Logger struct {
