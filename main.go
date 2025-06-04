@@ -365,7 +365,7 @@ func main() {
 	// te.render()
 	// te.fileRegion.Redraw(te.fileContents)
 	// te.fileRegion.update(nil, te.fileContents)
-	te.fileRegion.Redraw()
+	te.fileRegion.Redraw(0)
 	// te.fileRegion.drawRegionWindow()
 MAIN_LOOP:
 	for {

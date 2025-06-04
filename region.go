@@ -18,16 +18,27 @@ func (r Region) drawRegionWindow() {
 	moveCursor(r.xa, r.ya)
 }
 
-func (r Region) Redraw() {
+func (r Region) Redraw(offset int) {
 	r.drawRegionWindow()
-	moveCursor(r.xa, r.ya)
+	startPos, exists := r.fileCoords[offset]
+	if !exists {
+		startPos = [2]int{r.xa, r.ya}
+	}
+	moveCursor(startPos[0], startPos[1])
 	lines := 0
 	// t.Logger.Log(fmt.Sprintf("xa: %d, xb: %d, ya: %d, yb: %d", r.xa, r.xb, r.ya, r.yb))
 	pageSize := r.xb - r.xa
 	lineLength := 0
 	currentLine := ""
-	x, y := 0, 0
-	for ci, c := range r.Content {
+	x, y := startPos[0], startPos[1]
+	var printedContent string
+	if offset > len(r.Content) {
+		return
+	} else {
+		printedContent = r.Content[offset:]
+	}
+	r.Logger.Log(fmt.Sprintf("Will print: %s", printedContent))
+	for ci, c := range printedContent {
 		// r.Logger.Log(fmt.Sprintf("Bytes: %v, %q - CI: %d - lineLength%%pageSize==%d - pageSize: %d - lineLength: %d", c, c, ci, lineLength%pageSize, pageSize, lineLength))
 		if c == 10 {
 			currentLine = ""
@@ -45,7 +56,7 @@ func (r Region) Redraw() {
 			lineLength += 1
 			// ' '
 			if c == 32 {
-				wordSizeLookAhead := getWordLength(r.Content, ci+1)
+				wordSizeLookAhead := getWordLength(printedContent, ci+1)
 				// t.Logger.Log(fmt.Sprintf("word lookahead = %s (indexes %d, %d)", t.fileContents[ci:ci+wordSizeLookAhead+1], ci, ci+wordSizeLookAhead))
 				if (lineLength + wordSizeLookAhead) >= pageSize {
 					// fmt.Print(string(c))
@@ -188,7 +199,7 @@ func (r *Region) updateCursorLocation(key byte) {
 }
 
 func (r *Region) update(buffer []byte) {
-	shouldRedraw := false
+	redrawOffset := len(r.Content) + 1
 	switch key := buffer[0]; key {
 	case 27:
 		// ESC
@@ -196,26 +207,33 @@ func (r *Region) update(buffer []byte) {
 			r.updateCursorLocation(buffer[2])
 		}
 	case 126:
+		// DELETE
 		r.Content = r.Content[:max(0, r.cursorPosition)] + r.Content[r.cursorPosition+1:]
-		shouldRedraw = true
+		redrawOffset = r.cursorPosition + 1
 	case 127:
+		// BACKSPACE
 		if (r.cursorPosition - 1) < 0 {
 			return
 		}
 		r.Content = r.Content[:r.cursorPosition-1] + r.Content[r.cursorPosition:]
 		r.cursorPosition -= 1
-		shouldRedraw = true
+		redrawOffset = r.cursorPosition
 	case 13:
+		// ENTER
 		r.Content = r.Content[:r.cursorPosition] + "\r\n" + r.Content[r.cursorPosition:]
-		shouldRedraw = true
+		redrawOffset = r.cursorPosition
 	default:
 		r.Content = r.Content[:r.cursorPosition] + fmt.Sprintf("%c", key) + r.Content[r.cursorPosition:]
-		shouldRedraw = true
+		redrawOffset = r.cursorPosition
 	}
-	if shouldRedraw {
-		r.Redraw()
-		// r.drawRegionWindow()
-	}
+	r.Logger.Log(fmt.Sprintf("redrawOffset before: %v", redrawOffset))
+	r.Redraw(redrawOffset)
+	t := r.fileCoords[redrawOffset]
+	r.Logger.Log(fmt.Sprintf("redrawOffset after: %v, coords: %v", redrawOffset, t))
+	// moveCursor(t[0], t[1])
+	// fmt.Print("\033[1;31mX")
+	// fmt.Print("\033[0m")
+	// r.drawRegionWindow()
 	// flushRegion(r.xa, r.xb, r.ya, r.yb)
 	// r.Redraw()
 	moveCursor(r.fileCoords[r.cursorPosition][0]+r.xa, r.fileCoords[r.cursorPosition][1]+r.ya)
